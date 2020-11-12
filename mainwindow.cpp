@@ -10,6 +10,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->setupUi(this);
     connect(ui->pushButton, &QPushButton::clicked, this, &MainWindow::LoadImage);
+
+    ui->label->setScaledContents(true);
+    ui->label->setSizePolicy( QSizePolicy::Ignored, QSizePolicy::Ignored );
 }
 
 MainWindow::~MainWindow()
@@ -22,6 +25,7 @@ void MainWindow::LoadImage()
     QString fileName = QFileDialog::getOpenFileName(this,
         tr("Open Image"), "/home", tr("Image Files (*.png *.jpg *.bmp)"));
     QPixmap pix(fileName);
+    ui->label->adjustSize();
     ui->label->setPixmap(pix);
     ui->label->show();
 }
