@@ -29,3 +29,8 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 #DEPENDPATH += $$PWD/../../../opt/AdaptiveVision/AVL-x86_64-4.12.13/include
 
 DISTFILES +=
+
+unix: LIBS += -L$$PWD/../../../../opt/AdaptiveVision/AVL-x86_64-4.12.13/lib/ -lAVL
+
+INCLUDEPATH += $$PWD/../../../../opt/AdaptiveVision/AVL-x86_64-4.12.13/include
+DEPENDPATH += $$PWD/../../../../opt/AdaptiveVision/AVL-x86_64-4.12.13/include
