@@ -1,98 +1,67 @@
 #include "AVL.h"
 #include <iostream>
-using namespace std;
-//using namespace KernelShape;
 
-auto LinesArray(atl::Array<avl::Line2D>& lines)
+using namespace std;
+
+atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>> LinesArray(atl::Array<avl::Line2D>&);
+avl::Region CreateROI(avl::Image&);
+void SaveIMG(avl::Image&, atl::File);
+
+avl::Image LoadImage(atl::File);
+avl::Image YWMask(avl::Image& img, avl::Region& region);
+
+avl::Image BWImage(avl::Image img)
 {
-    auto arr1 = atl::Array<atl::Conditional<avl::Line2D>>(lines.Size()); //Array<Line2D>
-    for(int i=0;i<arr1.Size();++i)
-        arr1[i] = atl::Conditional<avl::Line2D>(lines[i]);
-    return atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>>(arr1);
+    avl::Image bw_img;
+    AverageChannels(img, atl::NIL, bw_img);
+    SaveIMG(bw_img, "/home/omnuse/Изображения/s/img0_bw");
+    return bw_img;
 }
 
-std::string Algo(std::string filepath) {
-
-    avl::Image img;
-    LoadImage(filepath.c_str(),false, img);
-    SaveImageToJpeg(img,"/home/omnuse/Изображения/s/img0", atl::NIL, false);
-    int H = img.Height();
-    int W = img.Width();
-
-
-    avl::Point2D origin = { W*0.2f , H*0.6f };
-    float r_width = W*0.6f;
-    float r_height = H*0.4f;
-    avl::Rectangle2D r(origin, 0, r_width, r_height);
-    avl::Region down_half;
-    CreateRectangleRegion(r, atl::NIL, W, H, down_half, atl::NIL);
-
-
-    avl::Image bw_img;
-    AverageChannels(img, atl::NIL,bw_img);
-    SaveImageToJpeg(bw_img,"/home/omnuse/Изображения/s/img0_bw", atl::NIL, false);
-
-
+avl::Image ClaheImage(avl::Image& bw_img,avl::Region& region)
+{
     avl::Image clahe_img;
-    EqualizeImageHistogram(bw_img, atl::NIL, 0.05, 0.35, clahe_img);// SIGABRT
-    SaveImageToJpeg(clahe_img,"/home/omnuse/Изображения/s/img1_clahe", atl::NIL, false);
+    EqualizeImageHistogram(bw_img, atl::NIL, 0.05, 0.35, clahe_img);
+    SaveIMG(clahe_img, "/home/omnuse/Изображения/s/img1_clahe");
 
+    return clahe_img;
+}
 
-    // сглаживание изображения
-    avl::Image smooth_img;
-    DilateImage(clahe_img, down_half, atl::NIL, atl::NIL, avl::KernelShape::Ellipse, 3, atl::NIL, smooth_img);
-    SaveImageToJpeg(smooth_img,"/home/omnuse/Изображения/s/img2_smooth", atl::NIL, false);
+avl::Image Multiply(avl::Image& a, avl::Image& b, avl::Region region)
+{
+    avl::Image result;
+    MultiplyImages(a, b, region, 1.0f, result);
+    SaveIMG(result, "/home/omnuse/Изображения/s/img4_final_mask");
+    return result;
+}
 
+std::string Algo(std::string path) {
+    avl::Image src_img(LoadImage(path.c_str()));
 
+    avl::Region downHalf = CreateROI(src_img);
 
+    avl::Image yw_mask = YWMask(src_img, downHalf);
 
-    avl::Image hsl_img;
-    RgbToHsl(img, hsl_img);
+    auto bw_img = BWImage(src_img);
+    auto clahe_img = ClaheImage(bw_img, downHalf);
 
-    avl::Image yellow_img, white_img, yw_img;
-
-
-
-    ThresholdImage_HSx(hsl_img, down_half, avl::HSxColorModel::Type::HSL, 0, 255, 160, 255, 140, 255, 2, yellow_img);
-    //ThresholdImage_HSx(hsl_img, down_half, HSxColorModel::Type::HSL, 0, 255, 160, 255, 110, 255, 2, yellow_img);
-    SaveImageToJpeg(yellow_img, "/home/omnuse/Изображения/s/img3_yw_mask", atl::NIL, false);
-
-    ThresholdImage_HSx(hsl_img, down_half, avl::HSxColorModel::Type::HSL, 0, 255, 0, 210, 170, 255, 2, white_img);
-    //ThresholdImage_HSx(hsl_img, down_half, HSxColorModel::Type::HSL, 0, 255, 0, 210, 100, 255, 2, white_img);
-    SaveImageToJpeg(white_img, "/home/omnuse/Изображения/s/img3_yw_mask", atl::NIL, false);
-
-
-
-    AddImages(yellow_img, white_img, down_half, 1.0f, yw_img);
-    SaveImageToJpeg(yw_img, "/home/omnuse/Изображения/s/img3_yw_mask", atl::NIL, false);
-
-
-
-
-
-    //Умножение чб клахе на бело-желтое изображение
-    avl::Image final_mask;
-    MultiplyImages(yw_img, clahe_img, down_half, 1.0f, final_mask);
-    SaveImageToJpeg(final_mask,"/home/omnuse/Изображения/s/img4_final_mask", atl::NIL, false);
+    avl::Image final_mask = Multiply(yw_mask, clahe_img, downHalf);
 
 
     avl::Image smooth_mask;
-    DilateImage(final_mask, down_half, atl::NIL, atl::NIL, avl::KernelShape::Ellipse, 1, atl::NIL, smooth_mask);
-    //SmoothImage_Gauss(final_mask, down_half, 1.0f, 1.0f, 2.0f, smooth_mask);
-    SaveImageToJpeg(smooth_mask,"/home/omnuse/Изображения/s/img5_smooth_mask", atl::NIL, false);
-
-
-
-    avl::Image outedges_img;
-    avl::Image canny_img;
-
+    DilateImage(final_mask, downHalf, atl::NIL, atl::NIL, avl::KernelShape::Ellipse, 1, atl::NIL, smooth_mask);
+    SaveIMG(smooth_mask, "/home/omnuse/Изображения/s/img5_smooth_mask");
 
     avl::Image final_img;
-    DetectEdges(final_mask, down_half, avl::EdgeFilter::Canny, 2.0f, atl::NIL, 15.0f, 5.0f, 0.0f, 1, outedges_img, canny_img);
-    //DetectEdges(final_mask, down_half, avl::EdgeFilter::Canny, 2.5, NIL, 20.0f, 30.0f, 1.0f, 1, outedges_img, canny_img);
-    SaveImageToJpeg(outedges_img,"/home/omnuse/Изображения/s/img6_outedges", atl::NIL, false);
+    avl::Image outedges_img;
+    avl::Image canny_img;
+    DetectEdges(final_mask, downHalf, avl::EdgeFilter::Canny, 2.0f, atl::NIL, 15.0f, 5.0f, 0.0f, 1, outedges_img, canny_img);
+    //DetectEdges(final_mask, downHalf, avl::EdgeFilter::Canny, 2.5, NIL, 20.0f, 30.0f, 1.0f, 1, outedges_img, canny_img);
+    SaveIMG(outedges_img, "/home/omnuse/Изображения/s/img6_outedges");
 
 
+    atl::Array<avl::Line2D> lines;
+    atl::Array<float> scores;
 
     // рисуем
     avl::Image lines_img;
@@ -103,41 +72,81 @@ std::string Algo(std::string filepath) {
     drwstl.filled = true;
     drwstl.opacity = 1;
 
+    //auto lines_ = LinesArray(lines);
+    //DetectLines(outedges_img, downHalf, 0.5f, 20.0f, 90.0f, 20.0f, 20.0f, lines, scores);
+    DetectLines(outedges_img, downHalf, 1, 1, 10, 10.0f, 20, lines, scores);
+    //DetectLines(outedges_img, downHalf, 0.5f, 20.0f, 60.0f, 40.0f, 10.0f, lines, scores);
 
-    atl::Array<avl::Line2D> lines;
-    atl::Array<float> scores;
-
-    DetectLines(outedges_img, down_half, 0.5f, 20.0f, 90.0f, 20.0f, 20.0f, lines, scores);
-    //DetectLines(outedges_img, down_half, 0.5f, 20.0f, 60.0f, 40.0f, 10.0f, lines, scores);
-    SaveImageToJpeg(lines_img,"/home/omnuse/Изображения/s/img7_lines", atl::NIL, false);
-
-    SaveImageToJpeg(img,"/home/omnuse/Изображения/s/img8_lines", atl::NIL, false);
-
-//    atl::Array<avl::Line2D> new_lines(10);
-
-//    for (auto i:lines)
-//    {
-//        if ((abs(i.a/i.b) > 0.95) && (abs(i.a/i.b) < 1.3))
-//        {
-//            cout <<"tan = "<< abs(i.a/i.b) <<endl;
-//            DrawLine(lines_img, i, NIL, pix, drwstl);
-//            DrawLine(img, i, NIL, pix, drwstl);
-//            // НЕ РИСУЕТ В ЦИКЛЕ! ХЗ ПОЧЕМУ, ОШИБОК нет
-//        }
-//    }
+    atl::Array<avl::Line2D> new_lines(10);
 
 
+    for (int i=0; i<lines.Size(); i++)
+    {
+        if ((abs(lines[i].a/lines[i].b) > 0.95f) && (abs(lines[i].a/lines[i].b) < 1.3f) )
+        {
+            cout <<"tan = "<< abs(lines[i].a/lines[i].b) << endl;
+            new_lines.Insert(i, lines[i]);
+        }
+    }
 
-//    for (int i=0; i<lines.Size(); i++)
-//    {
-//        if ((abs(lines[i].a/lines[i].b) > 0.95) && (abs(lines[i].a/lines[i].b) < 1.3) )
-//        {
-//            cout <<"tan = "<< abs(lines[i].a/lines[i].b) <<endl;
-//            new_lines.Insert(i, lines[i]);
-//        }
-//    }
 
+    //avs::DrawLines_SingleColor(outedges_img, LinesArray(new_lines), atl::NIL, pix , drwstl, true, lines_img);
+    avs::DrawLines_SingleColor(outedges_img, LinesArray(lines), atl::NIL, pix , drwstl, true, lines_img);
+    SaveIMG(lines_img, "/home/omnuse/Изображения/s/img7_lines");
+    avs::DrawLines_SingleColor(src_img, LinesArray(new_lines), atl::NIL, pix , drwstl, true, src_img);
+    SaveIMG(src_img, "/home/omnuse/Изображения/s/img8_lines");
 
     return "/home/omnuse/Изображения/s/img8_lines";
+}
 
+avl::Region CreateROI(avl::Image& image) {
+    int H = image.Height();
+    int W = image.Width();
+    avl::Point2D origin({W*0.2f,H/2.0f});
+    float width = W * 0.6f;
+    float heigth = H / 2.0f * 0.9f;
+    avl::Rectangle2D r(origin,0, width, heigth);
+    avl::Region down_half;
+    CreateRectangleRegion(r,atl::NIL,W,H,down_half,atl::NIL);
+
+    return down_half;
+}
+
+void SaveIMG(avl::Image& img, atl::File path)
+{
+    bool inIgnoreErrors = false;
+    atl::Optional<int> quality = 100;
+    avl::SaveImageToJpeg(img, path, quality, inIgnoreErrors);
+}
+
+avl::Image YWMask(avl::Image& img, avl::Region& region)
+{
+    avl::Image hsl_img;
+    avl::RgbToHsl(img, hsl_img);
+
+    avl::Image yellow_img, white_img, yw_img;
+
+//TODO поменять коэффициенты
+    ThresholdImage_HSx(hsl_img, region, avl::HSxColorModel::Type::HSL, 0, 255, 160, 255, 140, 255, 2, yellow_img);
+    ThresholdImage_HSx(hsl_img, region, avl::HSxColorModel::Type::HSL, 0, 255, 0, 210, 170, 255, 2, white_img);
+
+    AddImages(yellow_img, white_img, region, 1.0f, yw_img);
+    SaveIMG(yw_img, "/home/omnuse/Изображения/s/img3_yw_mask");
+
+    return yw_img;
+}
+
+avl::Image LoadImage(atl::File file) {
+    avl::Image img;
+    LoadImage(file,false, img);
+
+    return img;
+}
+
+atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>> LinesArray(atl::Array<avl::Line2D>& lines)
+{
+    auto arr1 = atl::Array<atl::Conditional<avl::Line2D>>(lines.Size()); //Array<Line2D>
+    for(int i=0;i<arr1.Size();++i)
+        arr1[i] = atl::Conditional<avl::Line2D>(lines[i]);
+    return atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>>(arr1);
 }
