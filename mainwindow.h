@@ -13,11 +13,14 @@ class MainWindow : public QMainWindow
 
 public:
     MainWindow(QWidget *parent = nullptr);
+    void DisplayImage(QPixmap img);
     ~MainWindow();
 
 public slots:
     void LoadImage();
+    void FindLanesOnImage();
 private:
+    std::string filepath;
     Ui::MainWindow *ui;
 };
 #endif // MAINWINDOW_H
