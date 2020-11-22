@@ -20,6 +20,7 @@ public slots:
     void LoadImage();
     void FindLanesOnImage();
 private:
+    bool imageLoaded;
     std::string filepath;
     Ui::MainWindow *ui;
 };

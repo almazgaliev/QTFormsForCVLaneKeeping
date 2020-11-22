@@ -1,14 +1,22 @@
-#include "AVL.h"
+#include "algorithm.h"
 #include <iostream>
+
 
 using namespace std;
 
-atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>> LinesArray(atl::Array<avl::Line2D>&);
-avl::Region CreateROI(avl::Image&);
-void SaveIMG(avl::Image&, atl::File);
 
-avl::Image LoadImage(atl::File);
-avl::Image YWMask(avl::Image& img, avl::Region& region);
+void SaveIMG(avl::Image& img, atl::File path)
+{
+    bool inIgnoreErrors = false;
+    atl::Optional<int> quality = 100;
+    avl::SaveImageToJpeg(img, path, quality, inIgnoreErrors);
+}
+
+avl::Image LoadImage(atl::File file) {
+    avl::Image img;
+    avl::LoadImage(file, false, img);
+    return img;
+}
 
 avl::Image BWImage(avl::Image img)
 {
@@ -17,8 +25,48 @@ avl::Image BWImage(avl::Image img)
     SaveIMG(bw_img, "/home/omnuse/Изображения/s/img0_bw");
     return bw_img;
 }
+avl::Region CreateROI(avl::Image& image) {
+    int H = image.Height();
+    int W = image.Width();
+    avl::Point2D origin({W*0.2f,H/2.0f});
+    float width = W * 0.6f;
+    float heigth = H / 2.0f * 0.9f;
+    avl::Rectangle2D r(origin,0, width, heigth);
+    avl::Region down_half;
+    CreateRectangleRegion(r,atl::NIL,W,H,down_half,atl::NIL);
 
-avl::Image ClaheImage(avl::Image& bw_img,avl::Region& region)
+    return down_half;
+}
+
+
+
+avl::Image YWMask(avl::Image& img, avl::Region& region)
+{
+    avl::Image hsl_img;
+    avl::RgbToHsi(img, hsl_img);
+
+    avl::Image yellow_img, white_img, yw_img;
+
+//TODO поменять коэффициенты
+    ThresholdImage_HSx(hsl_img, region, avl::HSxColorModel::Type::HSL, 0, 255, 160, 255, 140, 255, 2, yellow_img);
+    ThresholdImage_HSx(hsl_img, region, avl::HSxColorModel::Type::HSL, 0, 255, 0, 210, 170, 255, 2, white_img);
+
+    AddImages(yellow_img, white_img, region, 1.0f, yw_img);
+    SaveIMG(yw_img, "/home/omnuse/Изображения/s/img3_yw_mask");
+
+    return yw_img;
+}
+
+
+atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>> LinesArray(atl::Array<avl::Line2D>& lines)
+{
+    auto arr1 = atl::Array<atl::Conditional<avl::Line2D>>(lines.Size()); //Array<Line2D>
+    for(int i=0;i<arr1.Size();++i)
+        arr1[i] = atl::Conditional<avl::Line2D>(lines[i]);
+    return atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>>(arr1);
+}
+
+avl::Image ClaheImage(avl::Image& bw_img)
 {
     avl::Image clahe_img;
     EqualizeImageHistogram(bw_img, atl::NIL, 0.05, 0.35, clahe_img);
@@ -39,11 +87,14 @@ std::string Algo(std::string path) {
     avl::Image src_img(LoadImage(path.c_str()));
 
     avl::Region downHalf = CreateROI(src_img);
+    avl::Image yw_mask;
 
-    avl::Image yw_mask = YWMask(src_img, downHalf);
+
+    yw_mask = YWMask(src_img, downHalf);
+
 
     auto bw_img = BWImage(src_img);
-    auto clahe_img = ClaheImage(bw_img, downHalf);
+    auto clahe_img = ClaheImage(bw_img);
 
     avl::Image final_mask = Multiply(yw_mask, clahe_img, downHalf);
 
@@ -99,54 +150,3 @@ std::string Algo(std::string path) {
     return "/home/omnuse/Изображения/s/img8_lines";
 }
 
-avl::Region CreateROI(avl::Image& image) {
-    int H = image.Height();
-    int W = image.Width();
-    avl::Point2D origin({W*0.2f,H/2.0f});
-    float width = W * 0.6f;
-    float heigth = H / 2.0f * 0.9f;
-    avl::Rectangle2D r(origin,0, width, heigth);
-    avl::Region down_half;
-    CreateRectangleRegion(r,atl::NIL,W,H,down_half,atl::NIL);
-
-    return down_half;
-}
-
-void SaveIMG(avl::Image& img, atl::File path)
-{
-    bool inIgnoreErrors = false;
-    atl::Optional<int> quality = 100;
-    avl::SaveImageToJpeg(img, path, quality, inIgnoreErrors);
-}
-
-avl::Image YWMask(avl::Image& img, avl::Region& region)
-{
-    avl::Image hsl_img;
-    avl::RgbToHsl(img, hsl_img);
-
-    avl::Image yellow_img, white_img, yw_img;
-
-//TODO поменять коэффициенты
-    ThresholdImage_HSx(hsl_img, region, avl::HSxColorModel::Type::HSL, 0, 255, 160, 255, 140, 255, 2, yellow_img);
-    ThresholdImage_HSx(hsl_img, region, avl::HSxColorModel::Type::HSL, 0, 255, 0, 210, 170, 255, 2, white_img);
-
-    AddImages(yellow_img, white_img, region, 1.0f, yw_img);
-    SaveIMG(yw_img, "/home/omnuse/Изображения/s/img3_yw_mask");
-
-    return yw_img;
-}
-
-avl::Image LoadImage(atl::File file) {
-    avl::Image img;
-    LoadImage(file,false, img);
-
-    return img;
-}
-
-atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>> LinesArray(atl::Array<avl::Line2D>& lines)
-{
-    auto arr1 = atl::Array<atl::Conditional<avl::Line2D>>(lines.Size()); //Array<Line2D>
-    for(int i=0;i<arr1.Size();++i)
-        arr1[i] = atl::Conditional<avl::Line2D>(lines[i]);
-    return atl::Conditional<atl::Array<atl::Conditional<avl::Line2D>>>(arr1);
-}
